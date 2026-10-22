@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Resume</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #66d0f3;
+        }
+
+        .resume {
+            background: white;
+            padding: 30px;
+            max-width: 800px;
+            margin: auto;
+            box-shadow: 0 0 10px gray;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        h2 {
+            color: #444;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        nav {
+            margin-bottom: 20px;
+        }
+
+        nav a {
+            margin-right: 20px;
+            text-decoration: none;
+            color: blue;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="resume">
+
+    <nav>
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('about') }}">About</a>
+    </nav>
+    <center>
+    <h1>JAJIMOGGALA LOHITHA SAI</h1>
+
+    <p>
+        <b>Email:</b>lohithasai119@gmail.com
+    </p>
+
+    <p>
+        <b>Phone:</b> +91 9666366334
+    </p>
+    </center>
+
+    <h2>Career Objective</h2>
+    <p>
+        Bsc computer Science student seeking an opportunity to apply my programming
+        and technical skills in a professional environment.
+    </p>
+
+    <h2>Education</h2>
+
+    <p>
+        <b>Prism degree and pg college</b><br>
+        BSC  - Computer science<br>
+        CGPA: 9.0
+    </p>
+
+    <p>
+        <b>Narayana Junior College</b><br>
+        Intermediate<br>
+        GPA: 8.0
+    </p>
+
+    <p>
+        <b>Gnananiketan High School</b><br>
+        Secondary Education<br>
+        GPA: 9.8
+    </p>
+
+    <h2>Technical Skills</h2>
+
+    <ul>
+        <li>Python</li>
+        <li>HTML & CSS</li>
+        <li>SQL</li>
+        <li>PHP</li>
+    </ul>
+
+    <h2>Projects</h2>
+
+    <ul>
+        <li>ATM project (Python & OOP)
+       This is a console-based ATM simulator in Python that asks for a 4-digit PIN (with 3 attempts before the card is blocked) and lets the user withdraw, 
+       deposit, change their PIN, check their balance, and view transaction history. 
+       It enforces rules like amounts in multiples of 100 and keeps a running log of transactions during the session.
+
+        <li>Logistics & courier management (Web Application)LogiTrack is a logistics and courier 
+            management app for handling shipments, deliveries, and courier operations in one place.
+        </li>
+    </ul>
+
+    <h2>Internship</h2>
+
+    <p>
+        Web Development (Ability to Build web applications)      
+    </p>
+
+</div>
+
+</body>
+</html>
