@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}
+Dashboard - SNS
+{% endblock %}
+
+{% block navmenu %}
+    <a href="{{ url_for('profile') }}">Profile</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="dashboard-container">
+
+    <!-- Dashboard Welcome Section -->
+    <section class="dashboard-header">
+
+        <div class="dashboard-welcome">
+
+            <span class="dashboard-badge">
+                SMART NOTES MANAGER
+            </span>
+
+            <h1>
+    Welcome, <span>{{ username }}</span>
+</h1>
+
+            <p>
+                Manage, organize and access all your notes from one place.
+            </p>
+
+        </div>
+
+        <a href="/notes" class="btn btn-primary add-note-btn">
+            My Notes →
+        </a>
+
+    </section>
+
+
+    <!-- Statistics Section -->
+    <section class="stats">
+
+        <div class="stat-card">
+
+            <div class="stat-icon notes-icon">
+                📝
+            </div>
+
+            <div>
+                <h3>{{ total_notes }}</h3>
+                <p>Total Notes</p>
+            </div>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-icon files-icon">
+                📁
+            </div>
+
+            <div>
+                <h3>{{ total_files }}</h3>
+                <p>Uploaded Files</p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Recent Notes Section -->
+    <section class="recent-notes-section">
+
+        <div class="section-heading">
+
+            <div>
+                <h2>Recent Notes</h2>
+                <p>Your recently created notes</p>
+            </div>
+
+            <a href="/notes" class="view-all-link">
+                View All →
+            </a>
+
+        </div>
+
+
+        {% if notes %}
+
+            <div class="notes-grid">
+
+                {% for note in notes %}
+
+                    <div class="note-card">
+
+                        <div class="note-card-icon">
+                            📄
+                        </div>
+
+                        <h3>{{ note.title }}</h3>
+
+                        <p>{{ note.content }}</p>
+
+                        <div class="note-actions">
+
+                            <a
+                                href="/notes/{{ note.id }}"
+                                class="btn btn-secondary"
+                            >
+                                View Note →
+                            </a>
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+
+        {% else %}
+
+            <div class="empty-state">
+
+                <div class="empty-icon">
+                    📝
+                </div>
+
+                <h3>No Notes Yet</h3>
+
+                <p>
+                    You haven't created any notes yet.
+                    Start organizing your thoughts today!
+                </p>
+
+                <a href="/notes" class="btn btn-primary">
+                    Explore My Notes
+                </a>
+
+            </div>
+
+        {% endif %}
+
+    </section>
+
+</div>
+
+{% endblock %}
