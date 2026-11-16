@@ -21,32 +21,50 @@ My Files - SNS
         href="{{url_for('uploadFile')}}"
         class="btn btn-primary"
     >
-        uploadFile
+        Upload File
     </a>
 </div>
 <div>
-    {% with messages=get_flashed_messages(with_categories=true) %}
-        {% for category,message in messages %}
-            {% if category=="msg" %}
-                <div class="alert alert-success">
-                    {{ message }}
+    {% with messages = get_flashed_messages(with_categories = true) %}
+        {% for category, message in messages %}
+            {% if category == 'msg' %}
+                <div class = "alert alert-success">
+                    {{message}}
                 </div>
-            {% elif category == "err" %}
-                <div class="alert alert-danger">
-                     {{ message }}   
-                </div> 
+                {% elif category == 'err' %}
+                <div classs = "alert alert-danger">
+                    {{message}}
+                </div>
             {% endif %}
         {% endfor %}
-    {% endwith %}               
+    {% endwith %}
 </div>
 <div>
     {% if msg %}
-        <p style="color: green;">{{ msg }}</p>
+    <p style = "color: green;">{{msg}}</p>
     {% endif %}
     {% if err %}
-        <p style="color: red;">{{ err }}</p>    
-    {% endif %}    
+    <p style = "color: red;">{{err}}</p>
+    {% endif %}
+    
 </div>
+<div>
+    <form action="{{ url_for('myfiles') }}" method="POST">
+        <label for="searchfiles">Search</label>
+
+        <input
+            type="text"
+            name="searchfiles"
+            id="searchfiles"
+            placeholder="Enter filename"
+            value="{{ request.form.get('searchfiles', '') }}"
+        >
+        <button type="submit">Search</button>
+    </form>
+
+    <a href="{{ url_for('myfiles') }}">Remove Filter</a>
+</div>
+
 
 {% if files %}
 
@@ -69,6 +87,7 @@ My Files - SNS
             <a
                 href="/files/view/{{ file.id }}"
                 class="btn btn-secondary"
+                target = "_blank"
             >
                 View
             </a>
@@ -103,7 +122,7 @@ My Files - SNS
     </h2>
 
     <p>
-        Start by Uploading your first file.
+        Start by uploading your first file.
     </p>
 
 </div>

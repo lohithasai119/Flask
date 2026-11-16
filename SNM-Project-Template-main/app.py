@@ -3,20 +3,19 @@ import mysql.connector as sql
 import random
 import smtplib
 from email.message import EmailMessage
-from flask import Flask,render_template,redirect,url_for,request,session,flash 
+from flask import Flask,render_template,redirect,url_for,request,session, flash, send_file
 import bcrypt
 from werkzeug.utils import secure_filename
 import os
-import sys 
+import sys
 
 #create an upload folder if not exists
 if not os.path.exists('upload'):
-    os.mkdir('upload') #it will create a folder... 
+    os.mkdir('upload') #it will create a folder..
 #Setting up a secure way to generate and verify timed
 #tokens in Flask app
-from itsdangerous import URLSafeTimedSerializer,BadSignature,TimedSerializer
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 app = Flask(__name__)
-import os
 app.secret_key = "Codegnan@123"
 
 DBConfig = Config()
@@ -53,7 +52,8 @@ def getConnectionWithDB():
             database = db_name
         )
         return connection
-    except:
+    except Exception as e:
+        print("Database Connection Error:", e)
         return "Connection Failed"
 #Insert the data into the table
 def insertUserRecord(user_data):
@@ -77,27 +77,21 @@ def insertUserRecord(user_data):
             print("Data cannot be inserted")
             return False
 #Now let us  define the data
-# Now let us define the data
 data = [
     {
-        'name': "Jahnavi",
-        'email': "radha19962005@gmail.com",
+        'name': 'Shekar',
+        'email': 'shekar1505@gmail.com',
         'password_hash': '1a2b3c4d'
     },
     {
-        'name': "Kalyani",
-        'email': "kalyani@gmail.com",
-        'password_hash': "2a1b3d4c"
+        'name': 'Mamatha',
+        'email': 'mamtha0803@gmail.com',
+        'password_hash': '5e6f7g8h'
     },
     {
-        'name': 'Ramya',
-        'email': 'ramya@gmail.com',
-        'password_hash': 'hash789'
-    },
-    {
-        'name': 'Sravya',
-        'email': 'sravya@gmail.com',
-        'password_hash': 'hash101'
+        'name': 'Sai',
+        'email': 'Sai@codegnan.com',
+        'password_hash': '9i0j1k2l'
     }
 ]
 #for user in data:
@@ -276,12 +270,21 @@ def SendEmail(subject:str,to_email:str,body:str):
     message['Subject'] = subject
     message['From']=from_email
     message['To'] = to_email
-    message.set_content(body)
+    #message.set_content(body)
+    message.add_alternative(body, subtype='html')
     with smtplib.SMTP("smtp.gmail.com",587) as server:
         server.starttls()
         server.login(from_email,email_app_password)
         server.send_message(message)
     return True
+
+
+
+
+
+
+
+
 
 def validateData(user_data):
     errors =[]
@@ -329,18 +332,23 @@ def validateToken(token):
         data = serializer.loads(
             token,
             salt="reset-password",
-            max_age = 300
+            max_age=300
         )
         return data
+
+    except SignatureExpired:
+        return "Timeout"
+
     except BadSignature:
         return "Invalid"
-    except TimedSerializer: #if token timeout
-        return "Timeout"
+
+
 
 
 @app.route('/')
 def home():
     return render_template('index.html')
+
 @app.route('/register',methods=['GET','POST'])
 def register():
     if (request.method =="GET"):
@@ -464,45 +472,111 @@ def reset_password(token):
             return render_template('reset_password.html',
                                    error="Password mismatch")
         
-@app.route('/login',methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
+
     if request.method == "GET":
         return render_template('login.html')
+
     elif request.method == "POST":
+
         email = request.form['email']
-        password= request.form['password']
-        #we have to check account existed or not
-        user_data = {'email':email}
+        password = request.form['password']
+
+        user_data = {'email': email}
+
         record = readUserRecordbyEmail(user_data=user_data)
-        print("Login Data:",record)
-        if record:
-            #if data exists
-            if record['is_verified'] == 1:
-                login_status = bcrypt.checkpw(password.encode('utf-8'),
-                                              record['password_hash'].encode('utf-8')
-                                              )
-                print(login_status)
-                if login_status:
-                    #create a session,inside that we need to store email
-                    session['email'] = email
-                    session['id'] = record['id']
-                    session['name'] = record['name']
-                    return redirect('/dashboard')
-                else:
-                    return redirect('/login')
+
+        print("Login Data:", record)
+
+        if not isinstance(record, dict):
+            return render_template(
+                'login.html',
+                err="Account does not exist"
+            )
+
+        # Check whether the email is verified
+        if record['is_verified'] == True:
+
+            login_status = bcrypt.checkpw(
+                password.encode('utf-8'),
+                record['password_hash'].encode('utf-8')
+            )
+
+            print("Login Status:", login_status)
+
+            if login_status:
+
+                session['email'] = email
+                session['id'] = record['id']
+                session['name'] = record['name']
+
+                return redirect(url_for('dashboard'))
+
             else:
-                return redirect('/login')
+                return render_template(
+                    'login.html',
+                    err="Invalid email or password"
+                )
+
         else:
-            return redirect('/login') 
+            return render_template(
+                'login.html',
+                err="Please verify your email first"
+            )
+
+#Total notes count and total files count
+def getFilesAndNotesCount(user_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            get_notes_count = """select count(*) from notes where user_id = %s;"""
+            cursor.execute(get_notes_count,(user_id,))
+            notes_count = cursor.fetchone()[0]
+            get_files_count = """select count(*) from file_data where user_id = %s;"""
+            cursor.execute(get_files_count,(user_id,))
+            files_count = cursor.fetchone()[0]
+            cursor.close()
+            connection.close()
+            return notes_count, files_count
+    except Exception as e:
+        return False,f'Exception raised in count:{e}'
+def recentNotes(user_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return "Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            get_recent_note = """select * from notes where user_id = %s order by updated_at desc limit 3;"""
+            cursor.execute(get_recent_note,(user_id,))
+            recent_notes = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            return True,recent_notes
+    except Exception as e:
+        return False, f'Exeception raised in recent notes:{e}'
+
 
 @app.route('/dashboard')
 def dashboard():
-    #if the user data is not in the session redirect to login page
+    #if the user data is not in thesession redirect to login page
     if "id" not in session:
         return redirect("/login")
-    return render_template('dashboard.html',
-                           username=session['name'])
+    userid = session['id']
+    notes_count, files_count = getFilesAndNotesCount(userid)
+    _, recent_notes = recentNotes(userid)
+    print(recent_notes)
 
+    return render_template("dashboard.html",
+                           username=session['name'],
+                           total_notes = notes_count,
+                           total_files = files_count,
+                           notes = recent_notes
+                           )
 
 #profile route
 @app.route('/user/profile',methods=['GET'])
@@ -510,10 +584,485 @@ def profile():
     if "id" not in session:
         redirect('/login')
     name = session['name']
-    email = session['email']
-    return render_template("profile.html",
-                           email=email,
-                           name=name)
+    email = session['email'] 
+    return render_template("profile.html",email=email,
+                            name=name)
+
+def getNotesByUserId(user_id,filename=None):
+    try:
+        connection=getConnectionWithDB()
+        if connection=="Connection Failed":
+            return False, "Database Connection Failed"
+        else:
+            cursor=connection.cursor(dictionary=True)
+            query = "select * from notes where user_id=%s"
+            values = [user_id]
+            if filename:
+                query +=" and title LIKE %s"
+                values.append("%" + filename + "%")
+            cursor.execute(query,tuple(values))
+            notes=cursor.fetchall()
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,notes
+    except Exception as e:
+        return False,f"Exception raised in add notes:{e}"
+
+
+#notes route
+@app.route('/notes',methods=['GET','POST'])
+def mynotes():
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        status,notes = getNotesByUserId(user_id=session['id'])
+        if status == True:
+            return render_template("notes.html",notes = notes)
+        else:
+            return render_template('notes.html',err=notes)
+    if request.method == "POST":
+        notes_name = request.form.get('serchnotes', '').strip()
+        status,notes = getNotesByUserId(
+            user_id=session['id'],
+            filename=notes_name
+        )
+        if status == True:
+            return render_template('notes.html',notes=notes)
+        else:
+            return render_template('notes.html',err=notes)
+
+
+#inserting notes records in table 
+def AddNotesRecord(user_id:int,title:str,content:str):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            add_notes_query = """insert into notes(user_id,title,content) values(%s,%s,%s);"""
+            cursor.execute(add_notes_query,(user_id,title,content))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Saved"
+    except Exception as e:
+        return False,f'Exception raised in add notes:{e}'
+#add notes route
+@app.route('/notes/addnotes',methods=['GET','POST'])
+def add_notes():
+    if "id" not in session:
+        return redirect('/login')
+    #GET request 
+    if request.method == "GET":
+        return render_template('addnotes.html')
+    #POST request
+    if request.method == "POST":
+        title = request.form.get('Title',"No Title")
+        content = request.form.get('content',"No Content")
+        #store in db
+        status,msg = AddNotesRecord(user_id=session['id'],title=title,content=content)
+        if status == True:
+            #redirect to notes dashboard
+            return render_template('notes.html',msg=msg)
+        else:
+            return render_template('notes.html',err=msg)
+#get notes by id
+def getNotesById(notes_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            get_notes_by_id = """select title,content from notes where id =%s;"""
+            cursor.execute(get_notes_by_id,(notes_id,))
+            notes = cursor.fetchone()
+            cursor.close()
+            connection.close()
+            return True,notes
+    except Exception as e:
+        return False,f'Exception raised in view notes:{e}'
+#view notes
+@app.route('/notes/view/<int:note_id>')
+def view_notes(note_id):
+    #get data from database based on notesid
+    status,notes = getNotesById(notes_id=note_id)
+    if status == True:
+        title = notes['title']
+        content = notes['content']
+        return render_template('viewnotes.html',title=title,content=content)
+    else:
+        return render_template('notes.html',err=notes)
+
+#update notes by id
+def updateNotesById(notes_id:int,title:str,content:str):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+                    return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            update_notes_by_id = """update notes set title=%s where id=%s;"""
+            cursor.execute(update_notes_by_id,(title,content,notes_id))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Updated"
+    except Exception as e:
+        return False,f"Exception raised in updated notes:{e}"
+
+#edit notes route
+@app.route('/notes/edit/<int:note_id>',methods = ['GET','POST'])
+def edit_notes(note_id):
+    #get notes from the database
+    if request.method == "GET":
+        status, notes = getNotesById(notes_id=note_id)
+        if status == True:
+            return render_template('updatenotes.html', title = notes['title'],content = notes['content'], notes_id = note_id)
+        else:
+            return render_template('notes.html', err = notes)
+        
+    #post request
+    if request.method == "POST":
+        title = request.form.get('title')
+        content = request.form.get('content')
+        print(title, content)
+        #Updates notes content in database as per notes id
+        status, msg = updateNotesById(
+            title = title, content = content, notes_id = note_id)
+        _, notes = getNotesByUserId(user_id=session['id'])
+        if status == True:
+            return render_template('notes.html', msg =msg, notes=notes)
+        else:
+            return render_template('notes.html', err = msg, notes = notes)
+#delete notes
+def deleteNotesById(notes_id):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            delete_notes_by_id = """delete from notes where id=%s;"""
+            cursor.execute(delete_notes_by_id,(notes_id,))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"Notes Deleted"
+    except Exception as e:
+            return False,f"Exception raised in updated notes:{e}"
+            
+#delete notes route
+@app.route('/notes/delete/<int:note_id>',methods=['GET','POST'])
+def delete_notes(note_id):
+    #delete notes from database based on the note_id
+    status,msg=deleteNotesById(notes_id=note_id)
+    _, notes = getNotesByUserId(user_id=session['id'])
+    if status==True:
+        return render_template('notes.html',msg=msg,notes=notes)
+    else:
+        return render_template('notes.html',err=msg,notes=notes)
+
+#------------------------------
+#           FILES
+#-----------------------------
+#Fetch the files
+
+def GetFilesbyUserId(userid,filename=None):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            #Dictionary = True enables filename to be printed
+            query = "SELECT * FROM file_data WHERE user_id = %s"
+            values = [userid]
+            if filename:
+                query += " AND stored_name LIKE %s"
+                values.append("%" + filename + "%")
+            #get_file_by_userid = """select * from file_data
+            #where user_id=%s;"""
+            #cursor.execute(get_file_by_userid,(userid,))
+            cursor.execute(query, tuple(values))
+            files = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            return True,files
+    except Exception as e:
+            return False,f"Exception raised in Search Files:{e}"
+            
+
+@app.route('/files',methods=['GET','POST'])
+def myfiles():
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        userid = session['id']
+        #Get all the files
+        status, files = GetFilesbyUserId(userid= userid)
+        print(files)
+        if status:
+            return render_template('files.html',
+                                   files= files)
+        else:
+            msg = files
+            flash(msg, "err")
+            return render_template('files.html')
+    if request.method == "POST":
+        filename = request.form.get('searchfiles', '').strip()
+        status, files = GetFilesbyUserId(
+            userid=session['id'],
+            filename=filename
+        )
+        if status == True:
+            return render_template('files.html', files=files)
+        else:
+            flash(files, "err")
+            return render_template('files.html')
+        
+
+    
+#check file exist in allowed types
+def checkFileAllowed(filename):
+    allow_types = ['pdf','doc','jpeg','jpg','png','svg','csv',
+                   'xml','pptx','txt', 'py']
+    if "." in filename and filename.split('.')[1] in allow_types:
+        return True
+    else:
+        return False
+
+#check duplicate file
+def checkFileDuplicate(userid,filename):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            check_file_duplicate = """select * from file_data
+            where stored_name = %s and user_id=%s;"""
+            cursor.execute(check_file_duplicate,(filename,
+                                                 userid))
+            record = cursor.fetchone()
+            cursor.close()
+            connection.close()
+            if record:
+                return False,"Duplicate file is present"
+            else:
+                return True, "Not a Duplicate file"
+    except Exception as e:
+        return False,f"Exception raised in file: {e}"
+
+#insert files into table
+def UploadFileInDB(userid,filename,stored_name,type,size,path):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor()
+            insert_filedata_query= """insert into file_data
+            (user_id,original_name,stored_name,mime_type,
+            size_bytes,storage_path) values(%s,%s,%s,%s,%s,%s);"""
+            cursor.execute(insert_filedata_query,
+                           (userid,filename,stored_name,
+                            type,size,path))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"File Uploaded"
+    except Exception as e:
+        return False,f'Exception raised in File upload:{e}'
+
+#get file metadata by file_id
+def getFileByFileId(fileid):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary=True)
+            get_file_by_user_id = """select * from file_data
+            where id = %s;"""
+            cursor.execute(get_file_by_user_id,(fileid,))
+            file=cursor.fetchone()
+            cursor.close()
+            connection.close()
+            return True,file
+    except Exception as e:
+        return False,f'Exception raised in View files:{e}'
+    
+#upload file route
+@app.route('/files/upload',methods=['GET','POST'])
+def uploadFile():
+    if "id" not in session:
+        return redirect('/login')
+    #GET request
+    if request.method == "GET":
+        return render_template('uploadFile.html')
+    #POST request
+    if request.method == 'POST':
+        #get file from form
+        # file = request.form.get('file')
+        file = request.files.get('file')
+        if file and file.filename != "":
+            #check file in allowed types
+            filename = file.filename
+            if checkFileAllowed(filename=filename):
+                #check the valid allowed types of files
+                filename_secure=secure_filename(filename)
+                #Check the file in allowed types
+                status, msg = checkFileDuplicate(
+                    userid = session['id'],
+                    filename= filename_secure
+                )
+                if status == True:
+                    #Save the file
+                    upload_path = os.path.join('upload', filename_secure)
+                    file.save(upload_path)
+
+                # file.save('/upload')
+                    file_size = os.path.getsize(upload_path)
+                    file_type = os.path.splitext(filename_secure)[1].lower().lstrip('.')
+                    #path stored in the DB
+                    filepath = f'upload/{filename_secure}'
+                    #insert file metadata in database
+                    status, msg = UploadFileInDB(userid = session['id'],
+                        filename = filename,
+                        stored_name= filename_secure,
+                        type = file_type,
+                        size = file_size,
+                        path = filepath)
+                if status == True:
+                    flash(msg, "msg")
+                    return redirect('/files')
+                else:
+                    flash(msg,'err')
+                    return redirect('/files')
+            else:
+                flash(msg, 'err')
+                return redirect('/files')
+        else:
+            flash("File type is not allowed", "err")
+            return redirect('/files')
+        #render_template --> returns HTML directly to currentURL
+        #redirct --> Instructs the browser to make a new request a different URL
+    else:
+        flash("File not uploades", "err")
+        return redirect('/files')
+
+                #get file metadata
+                #store filemeta data in database
+                #redirect to files dashboard
+
+#get file metadata by file id
+def getFileByFileId(fileid):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False, "Database Connection Failed"
+        else:
+            cursor = connection.cursor(dictionary= True)
+            get_file_by_userid = """select * from file_data where id = %s;"""
+            cursor.execute(get_file_by_userid, (fileid,))
+            file = cursor.fetchone()
+            cursor.close()
+            connection.close()
+            return True, file
+    except Exception as e:
+        return False, f'Exception raised in View File: {e}'
+
+#delete file 
+#get file metadata by file id
+def deleteFileByFileId(fileid):
+    try:
+        connection = getConnectionWithDB()
+        if connection == "Connection Failed":
+            return False,"Database Connection Failed"
+        else:
+            # cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor()
+            delete_file_by_userid = """delete from file_data
+                                where id = %s;"""
+            cursor.execute(delete_file_by_userid,(fileid,))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True,"File Deleted Successfully"
+    except Exception as e:
+        return False,f'Exception raised in View File:{e}'
+
+
+import mimetypes
+#view file
+@app.route('/files/view/<file_id>')
+def viewFile(file_id):
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        #get the file by file_id
+        status, file = getFileByFileId(fileid= file_id)
+        if status == True:
+            secure_filename = file['stored_name']
+            mime_type,_ = mimetypes.guess_type(secure_filename)
+            return send_file(
+                f'Upload/{secure_filename}', mimetype = mime_type,
+                as_attachment = False
+            )
+        else:
+            flash(file, 'err')
+            return redirect('/files')
+
+
+#download file
+@app.route('/files/download/<file_id>')
+def downloadFile(file_id):
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+        #get file by file_id
+        status, file = getFileByFileId(fileid= file_id)
+        if status == True:
+            secure_filename = file['stored_name']
+            mime_type,_ = mimetypes.guess_type(secure_filename)
+            return send_file(
+                f'upload/{secure_filename}',
+                mimetype=mime_type,
+                as_attachment=True
+            )
+        else:
+            flash(file,"err")
+            return redirect('/files')
+
+#delete file
+@app.route('/files/delete/<file_id>')
+def deleteFile(file_id):
+    if "id" not in session:
+        return redirect('/login')
+    if request.method == "GET":
+            #get file by file_id
+            status,msg = deleteFileByFileId(fileid=file_id)
+            if status == True:
+                flash(msg,"msg")
+                return redirect('/files')
+            else:
+                flash(msg,"err")
+                return redirect('/files')
+
+
+#logout route
+@app.route("/logout",methods=['GET'])
+def logout():
+    #if id in session
+    session.pop('id',None)
+    session.pop('name',None)
+    session.pop('email',None)
+    return redirect('/login')
+
+#verify route
 @app.route('/verify',methods = ['GET','POST'])
 def verify():
     if request.method == "GET":
@@ -528,358 +1077,11 @@ def verify():
             return redirect('/login')
         else:
             return render_template('verify.html',err="Invalid OTP")
-#----------------------------
-#       Notes Routes
-#-----------------------------
-def getNotesByUserId(user_id):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database connection Failed"
-        else:
-            cursor = connection.cursor(dictionary=True)
-            get_notes_by_id="""SELECT * FROM NOTES WHERE
-            USER_ID = %s;"""
-            cursor.execute(get_notes_by_id,(user_id,))
-            notes = cursor.fetchall()
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True,notes
-    except Exception as e:
-        return False,f'Exception raised in add notes:{e}' 
-
-@app.route('/notes',methods=['GET','POST'])
-def mynotes():
-    if "id" not in session:
-        return redirect('/login')
-    if request.method == "GET":
-        #get user notes from the database
-        id = session['id']
-        print(id)
-        status,notes = getNotesByUserId(user_id=id)
-        print(notes)
-        if status == True:
-            return render_template("notes.html",
-                                   notes = notes)
-        else:
-            return render_template('notes.html',err=notes)
-#insert notes records in table
-def addNotesRecord(user_id:int,title:str,content:str):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor = connection.cursor()
-            add_notes_query = """INSERT INTO NOTES(user_id,
-            title,content) values(%s,%s,%s)"""
-            cursor.execute(add_notes_query,(user_id,
-                                            title,content))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True,"Notes Saved"
-    except Exception as e:
-        return False,f'Exception raised in add notes:{e}'
-    
-#add notes route
-@app.route('/notes/addnotes',methods=['GET','POST'])
-def add_notes():
-    if "id" not in session:
-        return redirect('/login')
-    #GET request
-    if request.method == "GET":
-        return render_template('addnotes.html')
-    #POST request
-    if request.method == "POST":
-        title = request.form.get('Title',"No Title")
-        content = request.form.get('content',"No Content")
-        #store in database
-        status,msg = addNotesRecord(
-            user_id = session['id'],
-            title = title,
-            content=content
-        )
-        if status == True:
-            #redirect to notes dashboard
-            return render_template('notes.html',msg=msg)
-        else:
-            return render_template('notes.html',err=msg)
-
-#get notes by id
-def getNotesById(notes_id):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor = connection.cursor(dictionary=True)
-            get_notes_by_id = """select title,content from notes
-            where id=%s;"""
-            cursor.execute(get_notes_by_id,(notes_id,))
-            notes = cursor.fetchone()
-            cursor.close()
-            connection.close()
-            return True,notes
-    except Exception as e:
-        return False,f'Exception raised in View Notes:{e}'
-#view notes route
-@app.route('/notes/view/<int:note_id>')
-def view_notes(note_id):
-    #get notes from thedatabase based on notesid
-    status,notes = getNotesById(notes_id=note_id)
-    if status == True:
-        title = notes['title']
-        content = notes['content']
-        return render_template('viewnotes.html',title=title,
-                               content=content)
-    else:
-        return render_template('notes.html',err=notes)
-#update notes by id
-def updateNotesByID(notes_id:int,title:str,content:str):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor= connection.cursor()
-            update_notes_by_id = """update notes 
-            set title=%s,content=%s where id=%s;"""
-            cursor.execute(update_notes_by_id,(title,
-                                               content,notes_id))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True,"Notes Updated"
-    except Exception as e:
-        return False,f"Exception raised in update notes:{e}"
-#edit notes route
-@app.route('/notes/edit/<int:note_id>',methods=['GET','POST'])
-def edit_notes(note_id):
-    #get notes from the database
-    if request.method == "GET":
-        status,notes=getNotesById(notes_id=note_id)
-        if status == True:
-            return render_template('updatenotes.html',
-                                   title=notes['title'],
-                                   content=notes['content'],
-                                   notes_id=note_id)
-        else:
-            return render_template('notes.html',err=notes)
-    #post request
-    if request.method == "POST":
-        title = request.form.get('title')
-        content = request.form.get('content')
-        print(title,content)
-        #update notes content in database as per notes id
-        status,msg = updateNotesByID(
-            title=title,content=content,notes_id=note_id)
-        _,notes = getNotesByUserId(user_id=session['id'])
-        if status == True:
-            return render_template('notes.html',msg=msg,
-                                   notes=notes)
-        else:
-            return render_template('notes.html',err=msg,
-                                   notes=notes)
-#delete notes by id
-def deleteNotesById(notes_id):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor = connection.cursor()
-            delete_notes_by_id = """delete from notes
-            where id=%s;"""
-            cursor.execute(delete_notes_by_id,(notes_id,))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True,"Notes Deleted"
-    except Exception as e:
-        return False,f'Exception raised in delete notes:{e}'
-
-#delete notes route
-@app.route('/notes/delete/<int:note_id>',methods=['GET','POST'])
-def delete_notes(note_id):
-    #delete notes from database based on the note_id
-    status,msg = deleteNotesById(notes_id=note_id)
-    _,notes = getNotesByUserId(user_id=session['id'])
-    if status==True:
-        return render_template('notes.html',msg=msg,
-                               notes=notes)
-    else:
-        return render_template('notes.html',err=msg,
-                               notes=notes)
-
-#-------files-------------
-@app.route('/files')
-def myfiles():
-    if "id" not in session:
-        return redirect('/login')
-    if request.method == "GET":
-        return render_template('files.html')
-
-#check file exist in allowed types
-def checkFileAllowed(filename):
-    allow_types = ['pdf','doc','jpeg','jpg','svg','csv','xml','txt']
-    if "." in filename and filename.split('.')[1] in allow_types:
-        return True
-    else:
-        return False    
-
-#check duplicate file
-def checkFileDuplicate(userid,filename):
-    try:
-        connection=getConnectionWithDB()
-        if connection=="Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor=connection.cursor()
-            check_file_duplicate="""select*from file_data
-            where stored_name=%s and user_id=%s;"""
-            cursor.execute(check_file_duplicate,(filename,userid))
-            record=cursor.fetchone()
-            cursor.close()
-            connection.close()
-            if record:
-                return False,"Duplicate filr is present"
-            else:
-                return True,"Not a Duplicate file"
-    except Exception as e:
-        return False,f"Exception raised in file:{e}"
-
-#insert files into table 
-def uploadFileInDB(userid,filename,stored_name,type,size,path):
-    try:
-        connection =getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor = connection.cursor()
-            insert_filedata_query = """insert into file_data 
-            (user_id,original_name,stored_name,mime_type,size_bytes,
-            storage_path) values (%s,%s,%s,%s,%s,%s);"""
-            cursor.execute(insert_filedata_query,
-                           (userid,filename,stored_name,type,size,path))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True,"File Uploaded"
-    except Exception as e:
-        return False,f'Exception raised in File upload:{e}'        
-
-#get file metadata by file_id
-def getFileByFileId(fileid):
-    try:
-        connection = getConnectionWithDB()
-        if connection == "Connection Failed":
-            return False,"Database Connection Failed"
-        else:
-            cursor = connection.cursor(dictionary=True)
-            get_file_by_user_id = """select * from file_data where id = %s;""" 
-            cursor.execute(get_file_by_user_id,(failed,))
-            file = cursor.fetchone()
-            cursor.close() 
-            connection.close()
-            return True,file
-    except Exception as e:
-        return False,f'Exception raised in View Files:{e}'           
-
-#upload file route
-@app.route('/files/upload',methods=['GET','POST'])
-def uploadFile():
-    if "id" not in session:
-        return redirect('/login')
-    #GET request
-    if request.method == "GET":
-        return render_template('uploadFile.html')
-    #POST request
-    if request.method == 'POST':
-        #get file from form
-        file = request.files.get('file')
-        if file and file.filename != "":
-            #check file in allowed types
-            filename = file.filename
-            if checkFileAllowed(filename=filename):
-                #check the valid allowed types of files
-                filename_secure = secure_filename(filename)
-                #check the file in allowed types
-                status,msg = checkFileDuplicate(
-                    userid=session['id'],
-                    filename=filename_secure
-                )
-                if status == True:
-                    #save the fie
-                    upload_path = os.path.join('upload',filename_secure)
-                    file.save(upload_path)
-
-                #get file meta data 
-                file_size = os.path.getsize(upload_path)
-                file_type = os.path.splitext(filename_secure)[1].lower().lstrip('.')
-                #path stored in db
-                filepath = f'/upload/{filename_secure}'
-                #insert the file metadata in db
-                status,msg = uploadFileInDB(userid=session['id'],
-                                            filename=filename,
-                                            stored_name=filename_secure,
-                                            type=file_type,
-                                            size=file_size,
-                                            path=filepath)
-                if status == True:
-                    flash(msg,"msg")
-                    return redirect('/files')
-                else:
-                    flash(msg,"err")
-                    return redirect('/files')
-            else:
-                flash(msg,"err")
-                return redirect('/files')   
-        else:
-            flash("File type not allowed","err")
-            return redirect('/files')
-        #render_template --> returns HTML directly to currentURL
-        #redirect --> instructs the browser to make a new request
-        #a different URL     
-    else:
-        flash("File not uploaded","err")
-        return redirect('/files')      
-
-#view file
-@app.route('/files/view/<file_id>')
-def viewfile():
-    if "id" not in session:
-        return redirect('/login')
-    pass 
-#download file
-@app.route('/files/download/<file_id>')
-def downloadFile():
-    if "id" not in session:
-        return redirect('/login')
-    pass 
-#delete file
-@app.route('/files/delete/<file_id>')
-def deleteFile():
-    if "id" not in session:
-        return redirect('/login')
-    pass 
-
-#logout route
-@app.route("/logout",methods=['GET'])
-def logout():
-    #if id in session
-    session.pop('id',None)
-    session.pop('name',None)
-    session.pop('email',None)
-    return redirect('/login')
 
 if (__name__ == "__main__"):
     app.run(host="0.0.0.0",
-            port = 5000,
+            port = 5002,
             debug=True)
-
-    
 #Registration Flow:
 #User --> register.html <--> Registration Form --> 
 # POST <-->Python  -->Collecting Data -->Validating -> 
@@ -916,40 +1118,4 @@ if (__name__ == "__main__"):
 #            insertRecord()
 #        else:
 #            displayErrorMessage()
-    
-#Registration Flow:
-#User --> register.html <--> Registration Form --> 
-# POST <-->Python  -->Collecting Data -->Validating -> 
-# Verifying -->Password to Password Hash <-->MYSQL Table
-
-#HTML <-> Python <-> MYSQL
-
-#Registration FLow
-#User has to click on Get Started
-#Register page
-#Name,Email,Password,Confirm Password and submit
-#verifyDuplicateEmail() --> if account not exists
-#generate OTP
-#send email with otp
-#redirect to verify.html
-#enter the otp receiveed on email
-#if the otp matches with the session otp
-#it will redirect to login
-#if they are not matching,it redirects with a message
-
-
-
-
-#@app.route('/register',methods = ['GET','POST'])
-#def register():
-#    if request.method == "GET":
-#       renderHTMLPage()
-#    elif request.method == "POST":
-#        collectUserData()
-#        validateUserData()
-#        displayErrors()
-#        status = verifyAccountExist()
-#        if status:
-#            insertRecord()
-#        else:
-#            displayErrorMessage()
+#
